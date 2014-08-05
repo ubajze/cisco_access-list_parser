@@ -1,5 +1,3 @@
-#!/usr/bin/python
-
 from Exscript import Account
 from Exscript.util.interact import read_login
 from Exscript.protocols import SSH2
@@ -10,28 +8,79 @@ import argparse
 import getpass
 import sys
 
+
+msg_unable_to_connect = 'Unable to connect to the device.'
+msg_authentication_failed = 'Authentication failed.'
+msg_command_failed = 'Command execution failed.'
+msg_running_config_failed = 'Unable to get running configuration'
+msg_numbered_out_of_range = 'Access-list number is out of range for Cisco IOS devices.'
+msg_access_list_does_not_exist = 'Access-list does not exist on the device.'
+msg_access_list_entry_does_not_exist = 'Access-list entry does not exist in access-list.'
+msg_unable_to_enter_config_mode = 'Unable to enter configuration mode.'
+msg_unable_to_delete_access_list = 'Unable to delete access-list.'
+msg_unable_to_configure_entry = 'Unable to configure access-list entry.'
+msg_unable_to_exit_config_mode = 'Unable to exit configuration mode.'
+msg_unable_to_apply_access_list = 'Unable to apply access-list.'
+msg_entry_number = 'Entry id must be number.'
+msg_access_list_syntax = 'Access-list entry syntax error.'
+
+
+class ExceptionTemplate(Exception):
+    def __init__(self,msg):
+        self.msg = msg
+    def __str__(self):
+        return self.msg
+
+class ConnectionError(ExceptionTemplate): pass
+class AuthenticationError(ExceptionTemplate): pass
+class CommandError(ExceptionTemplate): pass
+class RunningConfigError(ExceptionTemplate): pass
+class NumberedOutOfRangeError(ExceptionTemplate): pass
+class AccessListNotExistError(ExceptionTemplate): pass
+class AccessListEntryNotExistError(ExceptionTemplate): pass
+class UnableToEnterConfigModeError(ExceptionTemplate): pass
+class UnableToDeleteAccessListError(ExceptionTemplate): pass
+class UnableToConfigureEntryError(ExceptionTemplate): pass
+class UnableToExitConfigModeError(ExceptionTemplate): pass
+class UnableToApplyAccessListError(ExceptionTemplate): pass
+class EntryNumberError(ExceptionTemplate): pass
+class AccessListSyntaxError(ExceptionTemplate): pass
+
 class Host_connection:
 
-    def __init__(self, host, command_line_credentials = True, credentials = {}):
-
+    def __init__(self, host, credentials = {}):
         """
-        Initializing function. It takes one mandatory and two optional arguments. Function use provided host and credentials to create conn instance used to connect to device.
+        Initializing function. 
 
-        Arguments:
-        host -- IP address or hostname of the device
-        command_line_credentials -- True(default) -> login credentials are provided during script execution
-                                 -- False -> login credentails should be provided during class initialization
-        credentials -- Must be provided if command_line_credentials == False. The format of the variable must be dictionary with 'username' and 'password' as keys.
+        Init function takes host and credentials to connect to the device.
+
+        Keyword arguments:
+        host(format string) -- IP address or hostname of the device
+        credentials(format dictionary) -- The variable must be dictionary with 'username' and 'password' as keywords.
+
+        Returns:
+
+        Error messages:
         """
 
         self.host = host
         self.credentials = credentials
         self.account = Account(self.credentials['username'],self.credentials['password'])
 
-
     def connect_to_device(self):
         """
-        Function for SSH connection to the Cisco device. It creates connection instance. Exscript module is used for connection establishment and command execution. Function also execute 'terminal length 0' command on the Cisco device to ensure that command whole output is displayed.
+        Function to connect to the device.
+
+        Function is used to create connection instance. It uses Exscript module to connect to device via SSH. Function also execute 'terminal length 0' command on the Cisco device to ensure that whole output is displayed.
+
+        Keyword arguments:
+        
+        Returns:
+        Empty dictionary
+
+        Error messages:
+        msg_unable_to_connect -- Message is displayed when connection to the device fails.
+        msg_authentication_failed -- Message is displayed when authentication to the device fail.
         """
 
         self.conn = SSH2()
@@ -39,21 +88,24 @@ class Host_connection:
         try:
             self.conn.connect(self.host)
         except:
-            return {'msg': 'Unable to connect to the device'}
+            raise ConnectionError(msg_unable_to_connect)
         try:
             self.conn.login(self.account)
         except:
-            return {'msg': 'Authentication failed.'}
+            raise AuthenticationError(msg_authentication_failed)
         self.conn.execute('terminal length 0')
-        return {}
 
     def execute_command(self,command):
-
         """
-        Function to execute command on the Cisco device. It takes command as argument and return command output string.
+        Command execution function.
 
-        Arguments:
-        command -- valid command on the Cisco device in string format
+        Function executes command on the Cisco device. It takes command as argument and return command output string.
+
+        Keyword arguments:
+        command(format: string) -- command to execute on the Cisco device
+
+        Returns:
+        command output(
         """
 
         try:
@@ -61,7 +113,7 @@ class Host_connection:
             command_response = self.conn.response
             return {'command_response': command_response}
         except:
-            return {'msg': 'Command execution failed.'}
+            raise CommandError(msg_command_failed)
         
 
 
@@ -90,11 +142,12 @@ class Access_lists(Host_connection):
         """
 
         if self.running_config == '' or force:
-            response = self.execute_command('show running-config')
-            if 'msg' in response.keys():
-                self.running_config = {'msg': 'Unable to get running configuration'}
-            else:
-                self.running_config = {'config': response['command_response']}
+            try:
+                response = self.execute_command('show running-config')
+            except CommandError:
+                raise RunningConfigError(msg_running_config_failed)
+            self.running_config = {'config': response['command_response']}
+        return self.running_config
 
     def get_string_position(self,search_string):
         
@@ -118,14 +171,12 @@ class Access_lists(Host_connection):
         Function parse access-list numbers from the numbered access-lists. It returns list of numbered access-lists.
         """
 
+
         self.get_running_config()
-        if 'msg' in self.running_config.keys():
-            return {'msg': 'Unable to get running configuration.'}
         access_lists = []
         string_pos = self.get_string_position('access-list \d* .*\r\n')
         for pos in string_pos:
             access_lists.append(self.running_config['config'][pos[0]:pos[1]-2].split(' ')[1])
-        print access_lists
         return {'acls': list(set(access_lists))}
 
     def get_list_of_named_access_lists(self):
@@ -135,8 +186,6 @@ class Access_lists(Host_connection):
         """
 
         self.get_running_config()
-        if 'msg' in self.running_config.keys():
-            return {'msg': 'Unable to get running configuration.'}
         access_lists = []
         string_pos = self.get_string_position('ip access-list (extended|standard) .*\r\n')
         for pos in string_pos:
@@ -150,11 +199,7 @@ class Access_lists(Host_connection):
         """
 
         list_of_numbered_access_lists = self.get_list_of_numbered_access_lists()
-        if 'msg' in list_of_numbered_access_lists:
-            return list_of_numbered_access_lists
         list_of_named_access_lists = self.get_list_of_named_access_lists()
-        if 'msg' in list_of_named_access_lists:
-            return list_of_named_access_lists
         return {'acls': list_of_numbered_access_lists['acls']+list_of_named_access_lists['acls']}
 
     def get_access_list(self,access_list):
@@ -183,12 +228,8 @@ class Access_lists(Host_connection):
 
         access_list = {}
         access_list_type = self.get_numbered_access_list_type(access_list_number)
-        if 'msg' in access_list_type.keys():
-            return {'msg': 'Access-list number is out of range for Cisco IOS devices.'}
         access_list[access_list_number] = {'type': access_list_type['type']}
         access_list_entries = self.parse_numbered_access_list(access_list_number)
-        if 'msg' in access_list_entries:
-            return access_list_entries
         access_list[access_list_number]['entries'] = access_list_entries
         return access_list
 
@@ -203,13 +244,8 @@ class Access_lists(Host_connection):
 
         access_list = {}
         access_list_type = self.get_named_access_list_type(access_list_name)
-        if 'msg' in access_list_type.keys():
-            return access_list_type
         access_list[access_list_name] = {'type': access_list_type['type']}
-
         access_list_value = self.parse_named_access_list(access_list_name)
-        if 'msg' in access_list_value.keys():
-            return access_list_value
         access_list[access_list_name]['entries'] = access_list_value['entries']
         return access_list
 
@@ -221,12 +257,8 @@ class Access_lists(Host_connection):
 
         list_of_access_lists = []
         list_of_all_numbered_access_lists = self.get_list_of_numbered_access_lists()
-        if 'msg' in list_of_all_numbered_access_lists:
-            return {'msg': 'Unable to get list of numbered access_lists.'}
         for access_list in list_of_all_numbered_access_lists['acls']:
             numbered_access_list = self.get_numbered_access_list(access_list)
-            if 'msg' in numbered_access_list:
-                return numbered_access_list 
             list_of_access_lists.append(numbered_access_list)
         return {'acls': list_of_access_lists}
 
@@ -238,12 +270,8 @@ class Access_lists(Host_connection):
 
         list_of_access_lists = []
         list_of_all_named_access_lists = self.get_list_of_named_access_lists()
-        if 'msg' in list_of_all_named_access_lists:
-            return {'msg': 'Unable to get list of named access_lists.'}
         for access_list in self.get_list_of_named_access_lists()['acls']:
             named_access_list = self.get_named_access_list(access_list)
-            if 'msg' in named_access_list:
-                return named_access_list 
             list_of_access_lists.append(self.named_access_list(access_list))
         return {'acls':list_of_access_lists}
 
@@ -254,12 +282,12 @@ class Access_lists(Host_connection):
         """
 
         list_of_numbered_access_lists = self.get_list_of_numbered_access_lists()
-        if 'msg' in list_of_numbered_access_lists:
-            return list_of_numbered_access_lists
         list_of_named_access_lists = self.get_list_of_named_access_lists()
-        if 'msg' in list_of_named_access_lists:
-            return list_of_named_access_lists
-        return {'acls': list_of_numbered_access_lists['acls']+list_of_named_access_lists['acls']}
+        list_of_all_access_lists = list_of_numbered_access_lists['acls'] + list_of_named_access_lists['acls']
+        all_access_lists = []
+        for acl in list_of_all_access_lists:
+            all_access_lists.append(self.get_access_list(acl))
+        return {'acls': all_access_lists}
         return self.get_all_numbered_access_lists() + self.get_all_named_access_lists()
 
     def get_numbered_access_list_type(self,access_list_number):
@@ -280,7 +308,7 @@ class Access_lists(Host_connection):
         elif int(access_list_number) >= 2000 and int(access_list_number) <= 2699:
             return {'type':'extended'}
         else:
-            return {'msg':'error'}
+            raise NumberedOutOfRangeError(msg_numbered_out_of_range)
 
     def get_named_access_list_type(self,access_list_name):
 
@@ -293,11 +321,9 @@ class Access_lists(Host_connection):
 
 
         self.get_running_config()
-        if 'msg' in self.running_config.keys():
-            return {'msg': 'Unable to get running configuration.'}
         string_pos = self.get_string_position('ip access-list (extended|standard) ' + access_list_name + '\r\n')
         if not string_pos:
-            return {'msg': 'Access-list does not exist.'}
+            raise AccessListNotExistError(msg_access_list_does_not_exist)
         for pos in string_pos:
             access_list_type = self.running_config['config'][pos[0]:pos[1]-2].split(' ')[2]
         return {'type': access_list_type}
@@ -312,18 +338,14 @@ class Access_lists(Host_connection):
         """
 
         self.get_running_config()
-        if 'msg' in self.running_config.keys():
-            return {'msg': 'Unable to get running configuration.'}
         access_list_entries = {}
         counter = 1
         string_pos = self.get_string_position('access-list ' + access_list_number + ' ' + '.*\r\n')
         if not string_pos:
-            return {'msg': 'Access-list does not exist on the device.'}
+            raise AccessListNotExistError(msg_access_list_does_not_exist)
         for pos in string_pos:
             access_list_entries[counter] = self.running_config['config'][pos[0]:pos[1]-2]
             counter = counter + 1
-
-
         
         return access_list_entries
 
@@ -338,12 +360,10 @@ class Access_lists(Host_connection):
 
 
         self.get_running_config()
-        if 'msg' in self.running_config.keys():
-            return {'msg': 'Unable to get running configuration.'}
         access_list_entries = []
         string_pos = self.get_string_position('ip access-list (extended|standard) ' + access_list_name + '\r\n')
         if not string_pos:
-            return {'msg': 'Access-list does not exist on the device.'}
+            raise AccessListNotExistError(msg_access_list_does_not_exist)
         for pos in string_pos:
             access_list_command = self.running_config['config'][pos[0]:pos[1]-2]
             access_list_entry_position = self.running_config['config'].find(access_list_command) + len(access_list_command)
@@ -381,36 +401,36 @@ class Access_lists(Host_connection):
         """
         
         self.get_running_config()
-        if 'msg' in self.running_config.keys():
-            return {'msg': 'Unable to get running configuration.'}
         access_list_entries = self.get_numbered_access_list(access_list_number)
-        if 'msg' in access_list_entries.keys():
-            return access_list_entries
         try:
             for entry in entry_id_list:
                 del access_list_entries[access_list_number]['entries'][int(entry)]
         except KeyError:
-            return {'msg': 'Access-list entry does not exist in access-list'}
+            raise AccessListEntryNotExistError(msg_access_list_entry_does_not_exist)
 
-        command_response = self.execute_command('configure terminal')
-        if 'msg' in command_response.keys():
-            return {'msg': 'Unable to enter configuration mode.'}
-        command_response = self.execute_command('no access-list ' + access_list_number)
-        if 'msg' in command_response.keys():
-            return {'msg': 'Unable to delete access-list.'}
+        try:
+            command_response = self.execute_command('configure terminal')
+        except CommandError:
+            raise UnableToEnterConfigModeError(msg_unable_to_enter_config_mode)
+        try:
+            command_response = self.execute_command('no access-list ' + access_list_number)
+        except CommandError:
+            raise UnableToDeleteAccessListError(msg_unable_to_delete_access_list)
+
 
         if not len(entry_id_list) == 0:
             for key in sorted(access_list_entries[access_list_number]['entries'].keys()):
-                command_response = self.execute_command(access_list_entries[access_list_number]['entries'][key])
-                if 'msg' in command_response:
-                    return {'msg': 'Unable to configure access-list entry.'}
-        command_response = self.execute_command('exit')
-        if 'msg' in command_response.keys():
-            return {'msg': 'Unable to exit configuration mode'}
+                try:
+                    command_response = self.execute_command(access_list_entries[access_list_number]['entries'][key])
+                except CommandError:
+                    raise UnableToConfigureEntryError(msg_unable_to_configure_entry)
+        try:
+            command_response = self.execute_command('exit')
+        except CommandError:
+            raise UnableToExitConfigModeError(msg_unable_to_exit_config_mode)
+
 
         self.get_running_config(force=True)
-        if 'msg' in self.running_config.keys():
-            return {'msg': 'Unable to get running configuration.'}
         return self.get_numbered_access_list(access_list_number)
 
     def delete_named_access_list_entry(self,access_list_name,entry_id_list):
@@ -420,39 +440,41 @@ class Access_lists(Host_connection):
         """
        
         self.get_running_config()
-        if 'msg' in self.running_config.keys():
-            return {'msg': 'Unable to get running configuration.'}
         access_list_entries = self.get_named_access_list(access_list_name)
-        if 'msg' in access_list_entries.keys():
-            return access_list_entries
         try:
             for entry in entry_id_list:
                 del access_list_entries[access_list_name]['entries'][int(entry)]
         except KeyError:
-            return {'msg': 'Access-list entry does not exist in access-list'}
+            raise AccessListEntryNotExistError(msg_access_list_entry_does_not_exist)
 
-        command_response = self.execute_command('configure terminal')
-        if 'msg' in command_response.keys():
-            return {'msg': 'Unable to enter configuration mode.'}
+
+        try:
+            command_response = self.execute_command('configure terminal')
+        except CommandError:
+            raise UnableToEnterConfigModeError(msg_unable_to_enter_config_mode)
         
-        command_response = self.execute_command('no ip access-list ' + access_list_entries[access_list_name]['type'] + ' ' + access_list_name)
-        if 'msg' in command_response.keys():
-            return {'msg': 'Unable to delete access-list.'}
+        try:
+            command_response = self.execute_command('no ip access-list ' + access_list_entries[access_list_name]['type'] + ' ' + access_list_name)
+        except CommandError:
+            raise UnableToDeleteAccessListError(msg_unable_to_delete_access_list)
+
         if not len(access_list_entries[access_list_name]['entries']) == 0 and not len(entry_id_list) == 0:
-            command_response = self.execute_command('ip access-list ' + access_list_entries[access_list_name]['type'] + ' ' + access_list_name)
-            if 'msg' in command_response:
-                return {'msg': 'Unable to re-apply access-list'}
+            try:
+                command_response = self.execute_command('ip access-list ' + access_list_entries[access_list_name]['type'] + ' ' + access_list_name)
+            except CommandError:
+                raise UnableToApplyAccessListError(msg_unable_to_apply_access_list)
             for key in sorted(access_list_entries[access_list_name]['entries'].keys()):
-                command_response = self.execute_command(access_list_entries[access_list_name]['entries'][key])
-                if 'msg' in command_response:
-                    return {'msg': 'Unable to apply access-list entry'}
-        command_response = self.execute_command('end')
-        if 'msg' in command_response:
-            return {'msg': 'Unable to exit access-list configuration mode'}
+                try:
+                    command_response = self.execute_command(access_list_entries[access_list_name]['entries'][key])
+                except CommandError:
+                    raise UnableToConfigureEntryError(msg_unable_to_configure_entry)
+
+        try:
+            command_response = self.execute_command('end')
+        except CommandError:
+            raise UnableToExitConfigModeError(msg_unable_to_exit_config_mode)
 
         self.get_running_config(force=True)
-        if 'msg' in self.running_config.keys():
-            return {'msg': 'Unable to get running configuration.'}
         return self.get_named_access_list(access_list_name)
  
     def add_access_list_entry(self,access_list,entry_id,access_list_entry):
@@ -474,15 +496,11 @@ class Access_lists(Host_connection):
         """
 
         self.get_running_config()
-        if 'msg' in self.running_config.keys():
-            return {'msg': 'Unable to get running configuration.'}
         access_list_entries = self.get_numbered_access_list(access_list_number)
-        if 'msg' in access_list_entries.keys():
-            return access_list_entries
         try:
             int(entry_id)
         except:
-            return {'msg': 'Entry id must be number.'}
+            raise EntryNumberError(msg_entry_number)
 
         new_access_list_entries = {int(entry_id):access_list_entry}
         print new_access_list_entries
@@ -492,25 +510,27 @@ class Access_lists(Host_connection):
             else:
                 new_access_list_entries[key+1] = access_list_entries[access_list_number]['entries'][key]
 
-        command_response = self.execute_command('configure terminal')
-        if 'msg' in command_response.keys():
-            return {'msg': 'Unable to enter configuration mode.'}
-        command_response = self.execute_command('no access-list ' + access_list_number)
-        if 'msg' in command_response.keys():
-            return {'msg': 'Unable to delete access-list.'}
+        try:
+            command_response = self.execute_command('configure terminal')
+        except CommandError:
+            raise UnableToEnterConfigModeError(msg_unable_to_enter_config_mode)
+        try:
+            command_response = self.execute_command('no access-list ' + access_list_number)
+        except CommandError:
+            raise UnableToDeleteAccessListError(msg_unable_to_delete_access_list)
 
 
         for key in sorted(new_access_list_entries.keys()):
-            command_response = self.execute_command(new_access_list_entries[key])
-            if 'msg' in command_response.keys():
-                return {'msg': 'Access-list entry syntax error.'}
-        command_response = self.execute_command('exit')
-        if 'msg' in command_response.keys():
-            return {'msg': 'Unable to exit configuration mode'}
+            try:
+                command_response = self.execute_command(new_access_list_entries[key])
+            except CommandError:
+                raise AccessListSyntaxError(msg_access_list_syntax)
+        try:
+            command_response = self.execute_command('exit')
+        except CommandError:
+            raise UnableToExitConfigModeError(msg_unable_to_exit_config_mode)
 
         self.get_running_config(force=True)
-        if 'msg' in self.running_config.keys():
-            return {'msg': 'Unable to get running configuration.'}
         return self.get_numbered_access_list(access_list_number)
 
     def add_named_access_list_entry(self,access_list_name,entry_id,access_list_entry):
@@ -520,16 +540,12 @@ class Access_lists(Host_connection):
         """
 
         self.get_running_config()
-        if 'msg' in self.running_config.keys():
-            return {'msg': 'Unable to get running configuration.'}
         access_list_entries = self.get_named_access_list(access_list_name)
-        if 'msg' in access_list_entries.keys():
-            return access_list_entries
 
         try:
             int(entry_id)
         except:
-            return {'msg': 'Entry id must be number.'}
+            raise EntryNumberError(msg_entry_number)
 
         new_access_list_entries = {int(entry_id):access_list_entry}
         for key in access_list_entries[access_list_name]['entries'].keys():
@@ -539,26 +555,32 @@ class Access_lists(Host_connection):
                 new_access_list_entries[key+1] = access_list_entries[access_list_name]['entries'][key]
 
 
-        command_response = self.execute_command('configure terminal')
-        if 'msg' in command_response.keys():
-            return {'msg': 'Unable to enter configuration mode.'}
-        self.execute_command('no ip access-list ' + access_list_entries[access_list_name]['type'] + ' ' + access_list_name)
-        if 'msg' in command_response.keys():
-            return {'msg': 'Unable to delete access-list.'}
-        self.execute_command('ip access-list ' + access_list_entries[access_list_name]['type'] + ' ' + access_list_name)
-        if 'msg' in command_response.keys():
-            return {'msg': 'Unable to add access-list.'}
+        try:
+            command_response = self.execute_command('configure terminal')
+        except CommandError:
+            raise UnableToEnterConfigModeError(msg_unable_to_enter_config_mode)
+        try:
+            command_response = self.execute_command('no ip access-list ' + access_list_entries[access_list_name]['type'] + ' ' + access_list_name)
+        except CommandError:
+            raise UnableToDeleteAccessListError(msg_unable_to_delete_access_list)
+        
+
+        try:
+            command_response = self.execute_command('ip access-list ' + access_list_entries[access_list_name]['type'] + ' ' + access_list_name)
+        except CommandError:
+            raise UnableToApplyAccessListError(msg_unable_to_apply_access_list)
         for key in sorted(new_access_list_entries.keys()):
-            command_response = self.execute_command(new_access_list_entries[key])
-            if 'msg' in command_response:
-                return {'msg': 'Access-list entry syntax error.'}
-        command_response = self.execute_command('end')
-        if 'msg' in command_response:
-            return {'msg': 'Unable to exit access-list configuration mode'}
+            try:
+                command_response = self.execute_command(new_access_list_entries[key])
+            except CommandError:
+                raise UnableToApplyAccessListError(msg_unable_to_apply_access_list)
+        try:
+            command_response = self.execute_command('end')
+        except CommandError:
+            raise UnableToExitConfigModeError(msg_unable_to_exit_config_mode)
 
         self.get_running_config(force=True)
-        if 'msg' in self.running_config.keys():
-            return {'msg': 'Unable to get running configuration.'}
+        print self.get_named_access_list(access_list_name)
         return self.get_named_access_list(access_list_name)
 
 
@@ -586,12 +608,38 @@ if __name__ == '__main__':
 
 
     access_lists = Access_lists(args['host'],credentials = credentials)
-    connection_message = access_lists.connect_to_device()    
-    if 'msg' in connection_message.keys():
-        print connection_message['msg']
+    try:
+        access_lists.connect_to_device()
+    except ConnectionError:
+        print msg_unable_to_connect
+        sys.exit()
+    except AuthenticationError:
+        print msg_authentication_failed
+        sys.exit()
+#    connection_message = access_lists.connect_to_device()    
+#    if 'msg' in connection_message.keys():
+#        print connection_message['msg']
+#        sys.exit()
+#    access_lists.execute_command('configure terminal')
+
+    try:
+        if args['list'] == True:
+            function_response = access_lists.get_list_of_all_access_lists()
+            print json.dumps(function_response['acls'], indent=4)
+        elif args['acl'] != None:
+            access_list_value = access_lists.get_access_list(args['acl'])
+            print json.dumps(access_list_value, indent=4)
+    except RunningConfigError:
+        print msg_running_config_failed
+        sys.exit()
+    except AccessListNotExistError:
+        print msg_access_list_does_not_exist
+        sys.exit()
+    except NumberedOutOfRangeError:
+        print msg_numbered_out_of_range
         sys.exit()
 
-#    access_lists.execute_command('configure terminal')
+
     if args['list'] == True:
         function_response = access_lists.get_list_of_all_access_lists()
         if 'msg' in function_response:
@@ -615,12 +663,14 @@ if __name__ == '__main__':
         if 'msg' in access_list_value.keys():
             print access_list_value['msg']
         else:
-            print json.dumps(access_list_value['acls'], indent=4)
+            print access_list_value
+            print json.dumps(access_list_value, indent=4)
     else:
-        print json.dumps(access_lists.get_all_access_lists(), indent=4)
-
-
-    
+        access_list_value = access_lists.get_all_access_lists()
+        if 'msg' in access_list_value.keys():
+            print access_list_value['msg']
+        else:
+            print json.dumps(access_list_value['acls'], indent=4)
 
     access_lists.disconnect_device()
 
