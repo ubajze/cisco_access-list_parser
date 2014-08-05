@@ -340,11 +340,13 @@ class Access_lists(Host_connection):
         self.get_running_config()
         access_list_entries = {}
         counter = 1
+        acl_lenght = len('access-list ' + access_list_number + ' ')
+        print acl_lenght
         string_pos = self.get_string_position('access-list ' + access_list_number + ' ' + '.*\r\n')
         if not string_pos:
             raise AccessListNotExistError(msg_access_list_does_not_exist)
         for pos in string_pos:
-            access_list_entries[counter] = self.running_config['config'][pos[0]:pos[1]-2]
+            access_list_entries[counter] = self.running_config['config'][pos[0] + acl_lenght:pos[1]-2]
             counter = counter + 1
         
         return access_list_entries
@@ -417,11 +419,10 @@ class Access_lists(Host_connection):
         except CommandError:
             raise UnableToDeleteAccessListError(msg_unable_to_delete_access_list)
 
-
         if not len(entry_id_list) == 0:
             for key in sorted(access_list_entries[access_list_number]['entries'].keys()):
                 try:
-                    command_response = self.execute_command(access_list_entries[access_list_number]['entries'][key])
+                    command_response = self.execute_command('access-list ' + access_list_number + ' ' + access_list_entries[access_list_number]['entries'][key])
                 except CommandError:
                     raise UnableToConfigureEntryError(msg_unable_to_configure_entry)
         try:
@@ -496,14 +497,18 @@ class Access_lists(Host_connection):
         """
 
         self.get_running_config()
-        access_list_entries = self.get_numbered_access_list(access_list_number)
+        try:
+            access_list_entries = self.get_numbered_access_list(access_list_number)
+        except AccessListNotExistError:
+            access_list_entries = {}
+            access_list_entries[access_list_number] = {} 
+            access_list_entries[access_list_number]['entries'] = {}
         try:
             int(entry_id)
         except:
             raise EntryNumberError(msg_entry_number)
 
         new_access_list_entries = {int(entry_id):access_list_entry}
-        print new_access_list_entries
         for key in access_list_entries[access_list_number]['entries'].keys():
             if key < int(entry_id):
                 new_access_list_entries[key] = access_list_entries[access_list_number]['entries'][key]
@@ -522,7 +527,7 @@ class Access_lists(Host_connection):
 
         for key in sorted(new_access_list_entries.keys()):
             try:
-                command_response = self.execute_command(new_access_list_entries[key])
+                command_response = self.execute_command('access-list ' + access_list_number + ' ' + new_access_list_entries[key])
             except CommandError:
                 raise AccessListSyntaxError(msg_access_list_syntax)
         try:
@@ -540,8 +545,13 @@ class Access_lists(Host_connection):
         """
 
         self.get_running_config()
-        access_list_entries = self.get_named_access_list(access_list_name)
-
+        try:
+            access_list_entries = self.get_named_access_list(access_list_name)
+        except AccessListNotExistError:
+            access_list_entries = {}
+            access_list_entries[access_list_name] = {} 
+            access_list_entries[access_list_name]['entries'] = {}
+            access_list_entries[access_list_name]['type'] = 'extended'
         try:
             int(entry_id)
         except:
@@ -573,7 +583,7 @@ class Access_lists(Host_connection):
             try:
                 command_response = self.execute_command(new_access_list_entries[key])
             except CommandError:
-                raise UnableToApplyAccessListError(msg_unable_to_apply_access_list)
+                raise AccessListSyntaxError(msg_access_list_syntax)
         try:
             command_response = self.execute_command('end')
         except CommandError:
@@ -616,61 +626,82 @@ if __name__ == '__main__':
     except AuthenticationError:
         print msg_authentication_failed
         sys.exit()
-#    connection_message = access_lists.connect_to_device()    
-#    if 'msg' in connection_message.keys():
-#        print connection_message['msg']
-#        sys.exit()
-#    access_lists.execute_command('configure terminal')
 
-    try:
-        if args['list'] == True:
+
+    
+    if args['list'] == True:
+        try:
             function_response = access_lists.get_list_of_all_access_lists()
             print json.dumps(function_response['acls'], indent=4)
-        elif args['acl'] != None:
+        except RunningConfigError:
+            print msg_running_config_failed
+            sys.exit()
+    elif args['acl'] != None:
+        try:
             access_list_value = access_lists.get_access_list(args['acl'])
             print json.dumps(access_list_value, indent=4)
-    except RunningConfigError:
-        print msg_running_config_failed
-        sys.exit()
-    except AccessListNotExistError:
-        print msg_access_list_does_not_exist
-        sys.exit()
-    except NumberedOutOfRangeError:
-        print msg_numbered_out_of_range
-        sys.exit()
-
-
-    if args['list'] == True:
-        function_response = access_lists.get_list_of_all_access_lists()
-        if 'msg' in function_response:
-            print function_response['msg']
-        else:
-            print json.dumps(function_response['acls'], indent=4)
-    elif args['acl'] != None:
-        access_list_value = access_lists.get_access_list(args['acl'])
-        if 'msg' in access_list_value.keys():
-            print access_list_value['msg']
-        else:
-            print json.dumps(access_list_value, indent=4)
+        except RunningConfigError:
+            print msg_running_config_failed
+        except NumberedOutOfRangeError:
+            print msg_numbered_out_of_range
+        except AccessListNotExistError:
+            print msg_access_list_does_not_exist
     elif args['del'] != None:
-        access_list_value = access_lists.delete_access_list_entry(args['del'][0],args['del'][1:])
-        if 'msg' in access_list_value.keys():
-            print access_list_value['msg']
-        else:
+        try:
+            access_list_value = access_lists.delete_access_list_entry(args['del'][0],args['del'][1:])
             print json.dumps(access_list_value, indent=4)
+        except RunningConfigError:
+            print msg_running_config_failed
+        except AccessListNotExistError:
+            print msg_access_list_does_not_exist
+        except AccessListEntryNotExistError:
+            print msg_access_list_entry_does_not_exist
+        except UnableToEnterConfigModeError:
+            print msg_unable_to_enter_config_mode
+        except UnableToDeleteAccessListError:
+            print msg_unable_to_delete_access_list
+        except UnableToConfigureEntryError:
+            print msg_unable_to_configure_entry
+        except UnableToExitConfigModeError:
+            print msg_unable_to_exit_config_mode
+        except UnableToApplyAccessListError:
+            print msg_unable_to_apply_access_list
+        except NumberedOutOfRangeError:
+            print msg_numbered_out_of_range
+        except UnableToDeleteAccessListError:
+            print msg_unable_to_apply_access_list
     elif args['add'] != None:
-        access_list_value = access_lists.add_access_list_entry(args['add'][0],args['add'][1],args['add'][2])
-        if 'msg' in access_list_value.keys():
-            print access_list_value['msg']
-        else:
-            print access_list_value
+        try:
+            access_list_value = access_lists.add_access_list_entry(args['add'][0],args['add'][1],args['add'][2])
             print json.dumps(access_list_value, indent=4)
+        except RunningConfigError:
+            print msg_running_config_failed
+        except NumberedOutOfRangeError:
+            print msg_numbered_out_of_range
+        except AccessListNotExistError:
+            print msg_access_list_does_not_exist
+        except EntryNumberError:
+            print msg_entry_number
+        except UnableToEnterConfigModeError:
+            print msg_unable_to_enter_config_mode
+        except UnableToDeleteAccessListError:
+            print msg_unable_to_delete_access_list
+        except AccessListSyntaxError:
+            print msg_access_list_syntax
+        except UnableToExitConfigModeError:
+            print msg_unable_to_exit_config_mode
+        except UnableToApplyAccessListError:
+            print msg_unable_to_apply_access_list
     else:
-        access_list_value = access_lists.get_all_access_lists()
-        if 'msg' in access_list_value.keys():
-            print access_list_value['msg']
-        else:
+        try:
+            access_list_value = access_lists.get_all_access_lists()
             print json.dumps(access_list_value['acls'], indent=4)
+        except RunningConfigError:
+            print msg_running_config_failed
+        except NumberedOutOfRangeError:
+            print msg_numbered_out_of_range
+        except AccessListNotExistError:
+            print msg_access_list_does_not_exist
 
     access_lists.disconnect_device()
 
