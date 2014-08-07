@@ -771,7 +771,6 @@ if __name__ == '__main__':
             print json.dumps(function_response['acls'], indent=4)
         except RunningConfigError:
             print msg_running_config_failed
-            sys.exit()
     elif args['acl'] != None:
         try:
             access_list_value = access_lists.get_access_list(args['acl'])
