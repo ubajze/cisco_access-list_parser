@@ -55,12 +55,12 @@ class Host_connection:
         Init function takes host and credentials to connect to the device.
 
         Keyword arguments:
-        host(format string) -- IP address or hostname of the device
-        credentials(format dictionary) -- The variable must be dictionary with 'username' and 'password' as keywords.
+        host(format: string) -- IP address or hostname of the device
+        credentials(format: dictionary) -- dictionary with 'username' and 'password' as keywords
 
         Returns:
 
-        Error messages:
+        Raises:
         """
 
         self.host = host
@@ -76,11 +76,10 @@ class Host_connection:
         Keyword arguments:
         
         Returns:
-        Empty dictionary
 
-        Error messages:
-        msg_unable_to_connect -- Message is displayed when connection to the device fails.
-        msg_authentication_failed -- Message is displayed when authentication to the device fail.
+        Raises:
+        ConnectionError -- Error is raised when connection to the device fails.
+        AuthenticationError -- Error is raised when authentication to the device fail.
         """
 
         self.conn = SSH2()
@@ -105,7 +104,10 @@ class Host_connection:
         command(format: string) -- command to execute on the Cisco device
 
         Returns:
-        command output(
+        command_response(format: dictionary) -- key command_response includes the string of command output
+
+        Raises:
+        CommandError -- Error is raised when command execution fail.
         """
 
         try:
@@ -114,13 +116,18 @@ class Host_connection:
             return {'command_response': command_response}
         except:
             raise CommandError(msg_command_failed)
-        
-
 
     def disconnect_device(self):
-
         """
-        Function used to disconnect SSH session from the device. It takes no arguments.
+        Function to disconnect from the device.
+
+        Function used to disconnect SSH session from the device. It takes no arguments. It should always be used when connection to the device exist.
+
+        Keyword arguments:
+        
+        Returns:
+
+        Raises:
         """
         
         self.conn.send('\exit\r')
@@ -132,13 +139,20 @@ class Access_lists(Host_connection):
     running_config = ''
 
     def get_running_config(self, force = False):
-
         """
-        Function that execute 'show running-config' command on the Cisco device and stores returned string to the running_config variable. Function only execute command if varible running_config is empty string. You can force command execution independently of the running_config variable with the force argument.
+        Function to get running config from the device.
 
-        Arguments:
-        force -- False(default) -> command is not executed if running config already exists
-              -- True -> 'show running-config' even if running_config variable exists
+        Function executes 'show running-config' command on the Cisco device and stores the output to the class variable running_config. Function only get new running config from the device if variable running_config is empty or function is executed with force argument. 
+
+        Keyword arguments:
+        force(format Boolean) -- False(default) -> command is not executed if running config already exists
+                              -- True -> 'show running-config' is always executed on the device
+
+        Returns:
+        running_config(format: dictionary) -- key config includes running_configuration
+
+        Raises:
+        RunningConfigError -- Error is displayed when 'show running-config' fail.
         """
 
         if self.running_config == '' or force:
@@ -150,13 +164,18 @@ class Access_lists(Host_connection):
         return self.running_config
 
     def get_string_position(self,search_string):
-        
         """
+        Function parse positions of the string from running configuration
+
         Function takes search string and string arguments. It check for all search_strng iterations in running_config variable. It returns the list of positions for all iterations of the search_string in the string.
 
-        Arguments:
-        search_string -- regex in the string format
-        running_config -- string that contains running configuration 
+        Keyword arguments:
+        search_string(format: string) -- regex that need to be searched
+
+        Returns:
+        string_pos(format: list) -- list of all occurrences of search_string in running_config, the occurrence is formated in pair (begin of search_string, end of search_string) 
+
+        Raises:
         """
 
         string_pos = []
@@ -166,11 +185,18 @@ class Access_lists(Host_connection):
         return string_pos        
 
     def get_list_of_numbered_access_lists(self):
-
         """
-        Function parse access-list numbers from the numbered access-lists. It returns list of numbered access-lists.
-        """
+        Function gets all numbered access-lists from the configuration.
 
+        Function parse running_config variable for all numbered access access-list. Numbered access-lists are in format "access-list [0-9]*"
+
+        Keyword arguments:
+
+        Returns:
+        list of access-lists(format: dictionary) -- dictionary with acls keyword and includes list of all numbered access-lists in running configuration 
+
+        Raises:
+        """
 
         self.get_running_config()
         access_lists = []
@@ -180,9 +206,17 @@ class Access_lists(Host_connection):
         return {'acls': list(set(access_lists))}
 
     def get_list_of_named_access_lists(self):
-
         """
-        Function parse names of the access-lists that exists on the network device. It returns the list of access-lists names.
+        Function gets all named access-lists from the configuration.
+
+        Function parse running_config variable for all named access access-list. Named access-lists are in format "ip access-list extended|standard*"
+
+        Keyword arguments:
+
+        Returns:
+        list of access-lists(format: dictionary) -- dictionary with acls keyword and includes list of all named access-lists in running configuration 
+
+        Raises:
         """
 
         self.get_running_config()
@@ -193,9 +227,17 @@ class Access_lists(Host_connection):
         return {'acls': access_lists}
 
     def get_list_of_all_access_lists(self):
-    
         """
+        Function gets all numbered and named access-lists.
+
         Function returns the list of all access-lists that exists on the network device.
+
+        Keyword arguments:
+
+        Returns:
+        list of access-lists(format: dictionary) -- dictionary with acls keyword and includes list of all access-lists in running configuration 
+
+        Raises:
         """
 
         list_of_numbered_access_lists = self.get_list_of_numbered_access_lists()
@@ -203,12 +245,18 @@ class Access_lists(Host_connection):
         return {'acls': list_of_numbered_access_lists['acls']+list_of_named_access_lists['acls']}
 
     def get_access_list(self,access_list):
-
         """
-        Function is used to get called access-list. It takes access-list string as argument and determinates if access-list is numbered or named.
+        Function gets access-list from device called with access_list variable
 
-        Arguments:
-        access_list -- access-list id in the string format
+        Function is used to differ between numbered and named access-list. If function get_access_list is called with number the get_numbered_access_list is called, otherwise get_named_access_list is called.
+
+        Keyword arguments:
+        access_list(fomrat: string) -- access-list id
+
+        Returns:
+        result_of_the function call(format: dictionary) -- the result of the function call is returned, dictionary with 'type' and 'entries' keys is returned 
+
+        Raises:
         """
 
         try:
@@ -218,12 +266,19 @@ class Access_lists(Host_connection):
             return self.get_named_access_list(access_list)
 
     def get_numbered_access_list(self,access_list_number):
-
         """
-        Function takes access_list_number as argument and returns the type and access-list entries for the numbered access-list that was called by the functions. The result is returned in dictionary format, with type and entries used as keys. The type returns access-list type, which could be standard or extended and entries return list of access-list entries. If access-list does not exist on the network device, the function returns empty dictionary.
+        Function is used to get numbered access-list type and entries.
 
-        Arguments:
-        access_list_number -- access-list number in the string format
+        Function takes access_list_number as argument and returns the type and access-list entries for the numbered access-list that was called by the functions. The type can be standard or extended while entries are returned in dictionary format with access_list_entry_id as key.
+
+        Keyword arguments:
+        access_list_number(format: string) -- access-list number
+
+        Returns:
+        access_list(format: dictionary) -- key type - which can be standard or extended
+                                           key entries - dictionary with access_list_entry_id as key
+
+        Raises:
         """
 
         access_list = {}
@@ -234,12 +289,19 @@ class Access_lists(Host_connection):
         return access_list
 
     def get_named_access_list(self,access_list_name):
-
         """
-        Function takes access_list_name as argument and returns the type and access-list entries for the named access-list that was called by the functions. The result is returned in dictionary format, with type and entries used as keys. The type returns access-list type, which could be standard or extended and entries return list of access-list entries. If access-list does not exist on the network device, the function returns empty dictionary.
+        Function is used to get named access-list type and entries.
 
-        Arguments:
-        access_list_name -- access-list name in the string format.
+        Function takes access_list_name as argument and returns the type and access-list entries for the named access-list that was called by the functions. The type can be standard or extended while entries are returned in dictionary format with access_list_entry_id as key.
+
+        Keyword arguments:
+        access_list_name(format: string) -- access-list name
+
+        Returns:
+        access_list(format: dictionary) -- key type - which can be standard or extended
+                                           key entries - dictionary with access_list_entry_id as key
+
+        Raises:
         """
 
         access_list = {}
@@ -288,7 +350,6 @@ class Access_lists(Host_connection):
         for acl in list_of_all_access_lists:
             all_access_lists.append(self.get_access_list(acl))
         return {'acls': all_access_lists}
-
 
     def get_numbered_access_list_type(self,access_list_number):
 
@@ -666,7 +727,6 @@ class Access_lists(Host_connection):
         self.get_running_config(force=True)
         return self.get_numbered_access_list(access_list_number)
 
-
     def move_named_access_list_entry(self,access_list_name,entry_id,new_position):
 
         """
@@ -763,104 +823,47 @@ if __name__ == '__main__':
         print msg_authentication_failed
         sys.exit()
 
-
-    
-    if args['list'] == True:
-        try:
+    try:
+        if args['list'] == True:
             function_response = access_lists.get_list_of_all_access_lists()
             print json.dumps(function_response['acls'], indent=4)
-        except RunningConfigError:
-            print msg_running_config_failed
-    elif args['acl'] != None:
-        try:
+        elif args['acl'] != None:
             access_list_value = access_lists.get_access_list(args['acl'])
             print json.dumps(access_list_value, indent=4)
-        except RunningConfigError:
-            print msg_running_config_failed
-        except NumberedOutOfRangeError:
-            print msg_numbered_out_of_range
-        except AccessListNotExistError:
-            print msg_access_list_does_not_exist
-    elif args['del'] != None:
-        try:
+        elif args['del'] != None:
             access_list_value = access_lists.delete_access_list_entry(args['del'][0],args['del'][1:])
             print json.dumps(access_list_value, indent=4)
-        except RunningConfigError:
-            print msg_running_config_failed
-        except AccessListNotExistError:
-            print msg_access_list_does_not_exist
-        except AccessListEntryNotExistError:
-            print msg_access_list_entry_does_not_exist
-        except UnableToEnterConfigModeError:
-            print msg_unable_to_enter_config_mode
-        except UnableToDeleteAccessListError:
-            print msg_unable_to_delete_access_list
-        except UnableToConfigureEntryError:
-            print msg_unable_to_configure_entry
-        except UnableToExitConfigModeError:
-            print msg_unable_to_exit_config_mode
-        except UnableToApplyAccessListError:
-            print msg_unable_to_apply_access_list
-        except NumberedOutOfRangeError:
-            print msg_numbered_out_of_range
-        except UnableToDeleteAccessListError:
-            print msg_unable_to_apply_access_list
-    elif args['add'] != None:
-        try:
+        elif args['add'] != None:
             access_list_value = access_lists.add_access_list_entry(args['add'][0],args['add'][1],args['add'][2])
             print json.dumps(access_list_value, indent=4)
-        except RunningConfigError:
-            print msg_running_config_failed
-        except NumberedOutOfRangeError:
-            print msg_numbered_out_of_range
-        except AccessListNotExistError:
-            print msg_access_list_does_not_exist
-        except EntryNumberError:
-            print msg_entry_number
-        except UnableToEnterConfigModeError:
-            print msg_unable_to_enter_config_mode
-        except UnableToDeleteAccessListError:
-            print msg_unable_to_delete_access_list
-        except AccessListSyntaxError:
-            print msg_access_list_syntax
-        except UnableToExitConfigModeError:
-            print msg_unable_to_exit_config_mode
-        except UnableToApplyAccessListError:
-            print msg_unable_to_apply_access_list
-    elif args['mov'] != None:
-        try:
+        elif args['mov'] != None:
             access_list_value = access_lists.move_access_list_entry(args['mov'][0],args['mov'][1],args['mov'][2])
             print json.dumps(access_list_value, indent=4)
-        except RunningConfigError:
-            print msg_running_config_failed
-        except NumberedOutOfRangeError:
-            print msg_numbered_out_of_range
-        except AccessListNotExistError:
-            print msg_access_list_does_not_exist
-        except EntryNumberError:
-            print msg_entry_number
-        except UnableToEnterConfigModeError:
-            print msg_unable_to_enter_config_mode
-        except UnableToDeleteAccessListError:
-            print msg_unable_to_delete_access_list
-        except AccessListSyntaxError:
-            print msg_access_list_syntax
-        except UnableToExitConfigModeError:
-            print msg_unable_to_exit_config_mode
-        except UnableToApplyAccessListError:
-            print msg_unable_to_apply_access_list
-        except AccessListEntryNotExistError:
-            print msg_access_list_entry_does_not_exist
-    else:
-        try:
+        else:
             access_list_value = access_lists.get_all_access_lists()
             print json.dumps(access_list_value['acls'], indent=4)
-        except RunningConfigError:
-            print msg_running_config_failed
-        except NumberedOutOfRangeError:
-            print msg_numbered_out_of_range
-        except AccessListNotExistError:
-            print msg_access_list_does_not_exist
+    except RunningConfigError: 
+        print msg_running_config_failed
+    except NumberedOutOfRangeError:
+        print msg_numbered_out_of_range
+    except AccessListNotExistError:
+        print msg_access_list_does_not_exist
+    except AccessListEntryNotExistError:
+        print msg_access_list_entry_does_not_exist
+    except UnableToEnterConfigModeError:
+        print msg_unable_to_enter_config_mode
+    except UnableToDeleteAccessListError:
+        print msg_unable_to_delete_access_list
+    except UnableToConfigureEntryError:
+        print msg_unable_to_configure_entry
+    except UnableToExitConfigModeError:
+        print msg_unable_to_exit_config_mode
+    except UnableToApplyAccessListError:
+        print msg_unable_to_apply_access_list
+    except EntryNumberError:
+        print msg_entry_number
+    except AccessListSyntaxError:
+        print msg_access_list_syntax
 
     access_lists.disconnect_device()
 
