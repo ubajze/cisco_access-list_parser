@@ -284,8 +284,8 @@ class Access_lists(Host_connection):
         access_list = {}
         access_list_type = self.get_numbered_access_list_type(access_list_number)
         access_list[access_list_number] = {'type': access_list_type['type']}
-        access_list_entries = self.parse_numbered_access_list(access_list_number)
-        access_list[access_list_number]['entries'] = access_list_entries
+        access_list_value = self.parse_numbered_access_list(access_list_number)
+        access_list[access_list_number]['entries'] = access_list_value['entries']
         return access_list
 
     def get_named_access_list(self,access_list_name):
@@ -312,9 +312,17 @@ class Access_lists(Host_connection):
         return access_list
 
     def get_all_numbered_access_lists(self):
-
         """
-        The function returns all numbered access-lists with type and access-list entries.
+        Function is used to get all numbered access-lists.
+
+        The function is used to get all numbered access-lists with type and entries. It uses get_list_of_numbered_access_lists function and based on the function result it calls get_numbered_access_list function to get details on specific access-list. Dictionary with numbered access-list details is returned.
+
+        Keyword arguments:
+
+        Returns:
+        access_lists(format: dictionary) -- key 'acls' - list of access-list dictionaries
+
+        Raises:
         """
 
         list_of_access_lists = []
@@ -325,9 +333,17 @@ class Access_lists(Host_connection):
         return {'acls': list_of_access_lists}
 
     def get_all_named_access_lists(self):
-
         """
-        The function returns all named access-lists with type and access-list entries.
+        Function is used to get all named access-lists.
+
+        The function is used to get all named access-lists with type and entries. It uses get_list_of_named_access_lists function and based on the function result it calls get_named_access_list function to get details on specific access-list. Dictionary with named access-list details is returned.
+
+        Keyword arguments:
+
+        Returns:
+        access_lists(format: dictionary) -- key 'acls' - list of access-list dictionaries
+
+        Raises:
         """
 
         list_of_access_lists = []
@@ -338,9 +354,17 @@ class Access_lists(Host_connection):
         return {'acls':list_of_access_lists}
 
     def get_all_access_lists(self):
-
         """
-        The function returns all numbered and named access-list.
+        Function is used to get all access-lists.
+
+        The function is used to get all  access-lists with type and entries. It uses get_list_of_numbered_access_lists and get_list_of_named_access_lists functions and based on the function results it calls get_access_list function to get details on specific access-list. Dictionary with numbered access-list details is returned.
+
+        Keyword arguments:
+
+        Returns:
+        access_lists(format: dictionary) -- key 'acls' - list of access-list dictionaries
+
+        Raises:
         """
 
         list_of_numbered_access_lists = self.get_list_of_numbered_access_lists()
@@ -352,12 +376,19 @@ class Access_lists(Host_connection):
         return {'acls': all_access_lists}
 
     def get_numbered_access_list_type(self,access_list_number):
-
         """
-        The function is used to classify numbered access-list. It takes access_list_number as arguments and returns access-list type.
+        Function is used to get numbered access-list type.
 
-        Arguments:
-        access_list_number -- access-list number in string format 
+        The function translate access-list number to the access-list type based on Cisco specifications. The numbered access-list type is returned.
+
+        Keyword arguments:
+        access_list_number(format: string) -- access-list number
+
+        Returns:
+        access_list_type(format: dictionary) -- key 'type' - access-list type, it could be standard or extended
+
+        Raises:
+        NumberedOutOfRangeError -- It is displayed if access-list number is out of range for Cisco IOS devices.
         """
 
         if int(access_list_number) >= 1 and int(access_list_number) <= 99:
@@ -372,12 +403,18 @@ class Access_lists(Host_connection):
             raise NumberedOutOfRangeError(msg_numbered_out_of_range)
 
     def get_named_access_list_type(self,access_list_name):
-
         """
-        Function is used to determine the type of named access-lists. It takes name as argument.
+        Function is used to get named access-list type.
 
-        Arguments:
-        access_list_name -- access-list name in string format
+        The function parse configuration to get named  access-list type. The named access-list type is returned.
+
+        Keyword arguments:
+        access_list_name(format: string) -- access-list name
+
+        Returns:
+        access_list_type(format: dictionary) -- key 'type' - access-list type, it could be standard or extended
+
+        Raises:
         """
 
 
@@ -390,12 +427,19 @@ class Access_lists(Host_connection):
         return {'type': access_list_type}
 
     def parse_numbered_access_list(self,access_list_number):
-
         """
-        Function is used to parse numbered access-list from running-config. It takes access-list number as an argument.
+        Function is used to parse numbered access-list from running-configuration.
 
-        Arguments:
-        access_list_number -- access-list number in string format
+        The function first call get_running_config function to get running configuration. Then it parses all data that follows 'access-list ' + access_list_number + ' ' + '.*\r\n' in the configuration. it returns dictionary with entry_id as key and entry value as dictionary value.
+
+        Keyword arguments:
+        access_list_number(format: string) -- access-list number
+
+        Returns:
+        access_list_entries(format: dictionary) -- key 'entries' - dictionary with 'entry_id' as key
+
+        Raises:
+        AccessListNotExistError -- The error is raised if access-list that was called with access_list_number does not exist.
         """
 
         self.get_running_config()
@@ -409,17 +453,23 @@ class Access_lists(Host_connection):
             access_list_entries[counter] = self.running_config['config'][pos[0] + prefix_len:pos[1]-2]
             counter = counter + 1
         
-        return access_list_entries
+        return {'entries': access_list_entries}
 
     def parse_named_access_list(self,access_list_name):
-
         """
-        Function is used to parse named access-list from running-config. It takes access-list name as an argument.
-        
-        Arguments:
-        access_list_name -- access-list name in string format
-        """
+        Function is used to parse named access-list from running-configuration.
 
+        The function first call get_running_config function to get running configuration. Then it parses all date that follows 'access-list ' + access_list_number + ' ' + '.*\r\n' in the configuration. it returns dictionary with entry_id as key and entry value as dictionary value.
+
+        Keyword arguments:
+        access_list_number(format: string) -- access-list number
+
+        Returns:
+        access_list_entries(format: dictionary) -- key 'entries' - dictionary with 'entry_id' as key
+
+        Raises:
+        AccessListNotExistError -- The error is raised if access-list that was called with access_list_name does not exist.
+        """
 
         self.get_running_config()
         access_list_entries = []
@@ -440,14 +490,22 @@ class Access_lists(Host_connection):
                     access_list_entry_position = access_list_entry_position + 2 + access_list_entry_stop
                 else:
                     in_access_list = False
-
-
         return {'entries': access_list_entries}
 
     def delete_access_list_entry(self,access_list,entry_id):
-
         """
+        Function deletes access-list entry id.
 
+        Function is used to differ between numbered and named access-list. If function delete_access_list_entry is called with number the delete_numbered_access_list_entry is called, otherwise delete_named_access_list_entry is called.
+
+        Keyword arguments:
+        access_list(format: string) -- access-list id
+        entry_id(format: list) -- a list of access-list entry id - must be number in string format
+
+        Returns:
+        access-list(format: dictionary) -- dictionary with 'type' and 'entries' keys is returned 
+
+        Raises:
         """
     
         try:
@@ -457,9 +515,24 @@ class Access_lists(Host_connection):
             return self.delete_named_access_list_entry(access_list,entry_id)        
 
     def delete_numbered_access_list_entry(self,access_list_number,entry_id_list):
-
         """
+        Function deletes numbered access-list entry id.
 
+        Function is used to delete entry_id from the access-list. The function first update running configuration if needed. Then delete entries that needs to be deleted from the access-list. After that it enters configuration mode, delete access-list and re-apply new access-list. If entry_id_list is empty list access-list is deleted from the running-configuration.
+
+        Keyword arguments:
+        access_list_number(format: string) -- access-list number
+        entry_id_list(format: list) -- a list of entry id 
+
+        Returns:
+        access-list(format: dictionary) -- dictionary with 'type' and 'entries' keys is returned 
+
+        Raises:
+        AccessListEntryNotExistError -- The error is raised if access-list entry does not exist.
+        UnableToEnterConfigModeError -- The error is raised if function can not enter configuration mode.
+        UnableToDeleteAccessListError -- The error is raised if function can not delete access-list from the IOS device.
+        UnableToConfigureEntryError -- The error is raised if function can not apply access-list entry.
+        UnableToExitConfigModeError -- The error is raised if function can not exit the config mode.
         """
         
         self.get_running_config()
@@ -469,7 +542,6 @@ class Access_lists(Host_connection):
                 del access_list_entries[access_list_number]['entries'][int(entry)]
         except KeyError:
             raise AccessListEntryNotExistError(msg_access_list_entry_does_not_exist)
-
         try:
             command_response = self.execute_command('configure terminal')
         except CommandError:
@@ -478,7 +550,6 @@ class Access_lists(Host_connection):
             command_response = self.execute_command('no access-list ' + access_list_number)
         except CommandError:
             raise UnableToDeleteAccessListError(msg_unable_to_delete_access_list)
-
         if not len(entry_id_list) == 0:
             for key in sorted(access_list_entries[access_list_number]['entries'].keys()):
                 try:
@@ -490,14 +561,28 @@ class Access_lists(Host_connection):
         except CommandError:
             raise UnableToExitConfigModeError(msg_unable_to_exit_config_mode)
 
-
         self.get_running_config(force=True)
         return self.get_numbered_access_list(access_list_number)
 
     def delete_named_access_list_entry(self,access_list_name,entry_id_list):
-
         """
+        Function deletes named access-list entry id.
 
+        Function is used to delete entry_id from the access-list. The function first update running configuration if needed. Then delete entries that needs to be deleted from the access-list. After that it enters configuration mode, delete access-list and re-apply new access-list. If entry_id_list is empty list access-list is deleted from the running-configuration.
+
+        Keyword arguments:
+        access_list_name(format: string) -- access-list name
+        entry_id_list(format: list) -- a list of entry id 
+
+        Returns:
+        access-list(format: dictionary) -- dictionary with 'type' and 'entries' keys is returned 
+
+        Raises:
+        AccessListEntryNotExistError -- The error is raised if access-list entry does not exist.
+        UnableToEnterConfigModeError -- The error is raised if function can not enter configuration mode.
+        UnableToDeleteAccessListError -- The error is raised if function can not delete access-list from the IOS device.
+        UnableToConfigureEntryError -- The error is raised if function can not apply access-list entry.
+        UnableToExitConfigModeError -- The error is raised if function can not exit the config mode.
         """
        
         self.get_running_config()
@@ -507,18 +592,14 @@ class Access_lists(Host_connection):
                 del access_list_entries[access_list_name]['entries'][int(entry)]
         except KeyError:
             raise AccessListEntryNotExistError(msg_access_list_entry_does_not_exist)
-
-
         try:
             command_response = self.execute_command('configure terminal')
         except CommandError:
             raise UnableToEnterConfigModeError(msg_unable_to_enter_config_mode)
-        
         try:
             command_response = self.execute_command('no ip access-list ' + access_list_entries[access_list_name]['type'] + ' ' + access_list_name)
         except CommandError:
             raise UnableToDeleteAccessListError(msg_unable_to_delete_access_list)
-
         if not len(access_list_entries[access_list_name]['entries']) == 0 and not len(entry_id_list) == 0:
             try:
                 command_response = self.execute_command('ip access-list ' + access_list_entries[access_list_name]['type'] + ' ' + access_list_name)
@@ -529,7 +610,6 @@ class Access_lists(Host_connection):
                     command_response = self.execute_command(access_list_entries[access_list_name]['entries'][key])
                 except CommandError:
                     raise UnableToConfigureEntryError(msg_unable_to_configure_entry)
-
         try:
             command_response = self.execute_command('end')
         except CommandError:
@@ -539,9 +619,20 @@ class Access_lists(Host_connection):
         return self.get_named_access_list(access_list_name)
  
     def add_access_list_entry(self,access_list,entry_id,access_list_entry):
-
         """
+        Function adds access-list entry id.
 
+        Function is used to differ between numbered and named access-list. If function add_access_list_entry is called with number the add_numbered_access_list_entry is called, otherwise add_named_access_list_entry is called.
+
+        Keyword arguments:
+        access_list(format: string) -- access-list id
+        entry_id(format: string) -- an access-list entry id - must be number in string format
+        access_list_entry(format: string) -- an access-list entry
+
+        Returns:
+        access-list(format: dictionary) -- dictionary with 'type' and 'entries' keys is returned 
+
+        Raises:
         """
     
         try:
@@ -551,9 +642,25 @@ class Access_lists(Host_connection):
             return self.add_named_access_list_entry(access_list,entry_id,access_list_entry)  
 
     def add_numbered_access_list_entry(self,access_list_number,entry_id,access_list_entry):
-
         """
-        Pri standarni ni nujno da je sekvenca pravilna, lahko je out-of-order
+        Function adds numbered access-list entry id.
+
+        Function is used to add entry_id to the access-list. The function first update running configuration if needed. Then add new entry to the configuration. If access-list does not exist, new access-list is created.
+
+        Keyword arguments:
+        access_list_number(format: string) -- access-list number in string format
+        entry_id(format: string) -- an access-list entry id - must be number in string format
+        access_list_entry(format: string) -- an access-list entry
+
+        Returns:
+        access-list(format: dictionary) -- dictionary with 'type' and 'entries' keys is returned 
+
+        Raises:
+        EntryNumberError -- The error is raised if entry_id is not number in string format.
+        UnableToEnterConfigModeError -- The error is raised if function can not enter configuration mode.
+        UnableToDeleteAccessListError -- The error is raised if function can not delete access-list from the IOS device.
+        AccessListSyntaxError -- The error is raised if access-list entry can not be applied to the device.
+        UnableToExitConfigModeError -- The error is raised if function can not exit the config mode.
         """
 
         self.get_running_config()
@@ -574,7 +681,6 @@ class Access_lists(Host_connection):
                 new_access_list_entries[key] = access_list_entries[access_list_number]['entries'][key]
             else:
                 new_access_list_entries[key+1] = access_list_entries[access_list_number]['entries'][key]
-
         try:
             command_response = self.execute_command('configure terminal')
         except CommandError:
@@ -583,8 +689,6 @@ class Access_lists(Host_connection):
             command_response = self.execute_command('no access-list ' + access_list_number)
         except CommandError:
             raise UnableToDeleteAccessListError(msg_unable_to_delete_access_list)
-
-
         for key in sorted(new_access_list_entries.keys()):
             try:
                 command_response = self.execute_command('access-list ' + access_list_number + ' ' + new_access_list_entries[key])
@@ -599,9 +703,26 @@ class Access_lists(Host_connection):
         return self.get_numbered_access_list(access_list_number)
 
     def add_named_access_list_entry(self,access_list_name,entry_id,access_list_entry):
-
         """
+        Function adds named access-list entry id.
 
+        Function is used to add entry_id to the access-list. The function first update running configuration if needed. Then add new entry to the configuration. If access-list does not exist, new access-list is created.
+
+        Keyword arguments:
+        access_list_name(format: string) -- access-list name in string format
+        entry_id(format: string) -- an access-list entry id - must be number in string format
+        access_list_entry(format: string) -- an access-list entry
+
+        Returns:
+        access-list(format: dictionary) -- dictionary with 'type' and 'entries' keys is returned 
+
+        Raises:
+        EntryNumberError -- The error is raised if entry_id is not number in string format.
+        UnableToEnterConfigModeError -- The error is raised if function can not enter configuration mode.
+        UnableToDeleteAccessListError -- The error is raised if function can not delete access-list from the IOS device.
+        UnableToApplyAccessListError -- The error is raised if function can not apply access-list to the configuration.
+        AccessListSyntaxError -- The error is raised if access-list entry can not be applied to the device.
+        UnableToExitConfigModeError -- The error is raised if function can not exit the config mode.
         """
 
         self.get_running_config()
@@ -653,9 +774,20 @@ class Access_lists(Host_connection):
         return self.get_named_access_list(access_list_name)
 
     def move_access_list_entry(self,access_list,entry_id,new_position):
-
         """
+        Function move access-list entry from one position to other.
 
+        Function is used to differ between numbered and named access-list. If function move_access_list_entry is called with number the move_numbered_access_list_entry is called, otherwise move_named_access_list_entry is called.
+
+        Keyword arguments:
+        access_list(format: string) -- access-list id
+        entry_id(format: string) -- an access-list entry id - must be number in string format
+        new_position(format: string) -- position to move access-list entry
+
+        Returns:
+        access-list(format: dictionary) -- dictionary with 'type' and 'entries' keys is returned 
+
+        Raises:
         """
     
         try:
@@ -665,9 +797,27 @@ class Access_lists(Host_connection):
             return self.move_named_access_list_entry(access_list,entry_id,new_position)  
 
     def move_numbered_access_list_entry(self,access_list_number,entry_id,new_position):
-
         """
+        Function move access-list entry from one position to other.
 
+        Function is used to move entry_id to the new position in access-list. If entry is moved down all entries above new_position are moved up. If entry is moved up all entries bellow new_position are moved down. 
+
+        Keyword arguments:
+        access_list_number(format: string) -- access-list number in string format
+        entry_id(format: string) -- an access-list entry id - must be number in string format
+        new_position(format: string) -- position to move access-list entry
+
+        Returns:
+        access-list(format: dictionary) -- dictionary with 'type' and 'entries' keys is returned 
+
+        Raises:
+
+        EntryNumberError -- The error is raised if entry_id is not number in string format.
+        AccessListEntryNotExistError --The error is raised if access-list entry called with entry_id does not exist.
+        UnableToEnterConfigModeError -- The error is raised if function can not enter configuration mode.
+        UnableToDeleteAccessListError -- The error is raised if function can not delete access-list from the IOS device.
+        AccessListSyntaxError -- The error is raised if access-list entry can not be applied to the device.
+        UnableToExitConfigModeError -- The error is raised if function can not exit the config mode.
         """
 
         self.get_running_config()
@@ -728,14 +878,31 @@ class Access_lists(Host_connection):
         return self.get_numbered_access_list(access_list_number)
 
     def move_named_access_list_entry(self,access_list_name,entry_id,new_position):
-
         """
+        Function move access-list entry from one position to other.
 
+        Function is used to move entry_id to the new position in access-list. If entry is moved down all entries above new_position are moved up. If entry is moved up all entries bellow new_position are moved down. 
+
+        Keyword arguments:
+        access_list_number(format: string) -- access-list number in string format
+        entry_id(format: string) -- an access-list entry id - must be number in string format
+        new_position(format: string) -- position to move access-list entry
+
+        Returns:
+        access-list(format: dictionary) -- dictionary with 'type' and 'entries' keys is returned 
+
+        Raises:
+
+        EntryNumberError -- The error is raised if entry_id is not number in string format.
+        AccessListEntryNotExistError --The error is raised if access-list entry called with entry_id does not exist.
+        UnableToEnterConfigModeError -- The error is raised if function can not enter configuration mode.
+        UnableToDeleteAccessListError -- The error is raised if function can not delete access-list from the IOS device.
+        AccessListSyntaxError -- The error is raised if access-list entry can not be applied to the device.
+        UnableToExitConfigModeError -- The error is raised if function can not exit the config mode.
         """
 
         self.get_running_config()
         access_list_entries = self.get_named_access_list(access_list_name)
-
         try:
             int(entry_id)
             int(new_position)
@@ -747,24 +914,16 @@ class Access_lists(Host_connection):
             del access_list_entries[access_list_name]['entries'][int(entry_id)]
         except KeyError:
             raise AccessListEntryNotExistError(msg_access_list_entry_does_not_exist)
-
-
-
         for key in sorted(access_list_entries[access_list_name]['entries'].keys()):
             if key > int(entry_id):
-
                 access_list_entries[access_list_name]['entries'][key-1] = access_list_entries[access_list_name]['entries'][key]
                 del(access_list_entries[access_list_name]['entries'][key])
-
-
         new_access_list_entries = moved_entry
         for key in access_list_entries[access_list_name]['entries'].keys():
             if key < int(new_position):
                 new_access_list_entries[key] = access_list_entries[access_list_name]['entries'][key]
             else:
                 new_access_list_entries[key+1] = access_list_entries[access_list_name]['entries'][key]
-
-
         try:
             command_response = self.execute_command('configure terminal')
         except CommandError:
@@ -773,7 +932,6 @@ class Access_lists(Host_connection):
             command_response = self.execute_command('no ip access-list ' + access_list_entries[access_list_name]['type'] + ' ' + access_list_name)
         except CommandError:
             raise UnableToDeleteAccessListError(msg_unable_to_delete_access_list)
-
         try:
             command_response = self.execute_command('ip access-list ' + access_list_entries[access_list_name]['type'] + ' ' + access_list_name)
         except CommandError:
@@ -787,7 +945,6 @@ class Access_lists(Host_connection):
             command_response = self.execute_command('end')
         except CommandError:
             raise UnableToExitConfigModeError(msg_unable_to_exit_config_mode)
-
         self.get_running_config(force=True)
         return self.get_named_access_list(access_list_name)
 
@@ -828,20 +985,20 @@ if __name__ == '__main__':
             function_response = access_lists.get_list_of_all_access_lists()
             print json.dumps(function_response['acls'], indent=4)
         elif args['acl'] != None:
-            access_list_value = access_lists.get_access_list(args['acl'])
-            print json.dumps(access_list_value, indent=4)
+            function_response = access_lists.get_access_list(args['acl'])
+            print json.dumps(function_response, indent=4)
         elif args['del'] != None:
-            access_list_value = access_lists.delete_access_list_entry(args['del'][0],args['del'][1:])
-            print json.dumps(access_list_value, indent=4)
+            function_response = access_lists.delete_access_list_entry(args['del'][0],args['del'][1:])
+            print json.dumps(function_response, indent=4)
         elif args['add'] != None:
-            access_list_value = access_lists.add_access_list_entry(args['add'][0],args['add'][1],args['add'][2])
-            print json.dumps(access_list_value, indent=4)
+            function_response = access_lists.add_access_list_entry(args['add'][0],args['add'][1],args['add'][2])
+            print json.dumps(function_response, indent=4)
         elif args['mov'] != None:
-            access_list_value = access_lists.move_access_list_entry(args['mov'][0],args['mov'][1],args['mov'][2])
-            print json.dumps(access_list_value, indent=4)
+            function_response = access_lists.move_access_list_entry(args['mov'][0],args['mov'][1],args['mov'][2])
+            print json.dumps(function_response, indent=4)
         else:
-            access_list_value = access_lists.get_all_access_lists()
-            print json.dumps(access_list_value['acls'], indent=4)
+            function_response = access_lists.get_all_access_lists()
+            print json.dumps(function_response['acls'], indent=4)
     except RunningConfigError: 
         print msg_running_config_failed
     except NumberedOutOfRangeError:
